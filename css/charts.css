@@ -1,0 +1,206 @@
+/* Контейнер графика */
+.visualization-container {
+    position: relative;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-light);
+    border-radius: 1rem;
+    padding: 1rem;
+    margin: 1.5rem 0;
+    height: 450px;
+    width: 100%;
+    display: none;
+}
+
+.visualization-container canvas,
+.chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0.5rem;
+    background: #e8f0fe;
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.03);
+}
+
+/* общий контейнер */
+.chart-container {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 1rem;
+    border: 1px solid var(--border-light);
+}
+
+.chart-container h4 {
+    margin-bottom: 1rem;
+    color: var(--gold-light);
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.chart-container p small {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    display: block;
+    margin-bottom: 1rem;
+}
+
+/* кнопки зума и управления */
+.zoom-buttons {
+    position: absolute;
+    bottom: 15px;
+    left: 15px;
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+    background: rgba(180, 210, 240, 0.85);
+    backdrop-filter: blur(4px);
+    padding: 6px 8px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid rgba(100, 140, 180, 0.5);
+}
+
+.zoom-btn {
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(100, 140, 180, 0.6);
+    background: #b8d0e8;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    color: #2c5282;
+}
+
+.zoom-btn:hover {
+    background: var(--gold);
+    border-color: var(--gold-dark);
+    color: #0f172a;
+    transform: scale(1.02);
+}
+
+.zoom-btn:active {
+    transform: scale(0.98);
+}
+
+.zoom-btn.zoom-in {
+    color: #2c6e2c;
+}
+
+.zoom-btn.zoom-out {
+    color: #b91c1c;
+}
+
+.zoom-btn.reset-btn {
+    color: #b45309;
+}
+
+.zoom-btn.zoom-in:hover,
+.zoom-btn.zoom-out:hover,
+.zoom-btn.reset-btn:hover {
+    color: #0f172a;
+}
+
+/* курсор для перетаскивания */
+.visualization-container canvas {
+    cursor: grab;
+}
+
+.visualization-container canvas:active {
+    cursor: grabbing;
+}
+
+/* стили для систем */
+#system-graph-wrapper {
+    margin-top: 1rem;
+}
+
+#system-graph-wrapper h4 {
+    margin-bottom: 0.75rem;
+    color: var(--gold-light);
+    font-size: 1rem;
+    text-align: center;
+}
+
+/* подсказка */
+.chart-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 0.5rem;
+    font-style: italic;
+}
+
+/* анимация */
+@keyframes chartFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.visualization-container,
+.chart-container {
+    animation: chartFadeIn 0.4s ease-out;
+}
+
+/* адаптивность */
+@media (max-width: 992px) {
+    .visualization-container {
+        height: 350px;
+    }
+    
+    .zoom-buttons {
+        bottom: 10px;
+        left: 10px;
+        padding: 5px 7px;
+        gap: 6px;
+    }
+    
+    .zoom-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 768px) {
+    .visualization-container {
+        height: 300px;
+        padding: 0.75rem;
+    }
+    
+    .zoom-buttons {
+        bottom: 8px;
+        left: 8px;
+        padding: 4px 6px;
+        gap: 5px;
+    }
+    
+    .zoom-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 480px) {
+    .visualization-container {
+        height: 250px;
+    }
+    
+    .zoom-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 12px;
+    }
+}

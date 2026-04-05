@@ -1,0 +1,416 @@
+/* ===== FORMS & INPUTS ===== */
+
+/* Input Section Container */
+.input-section {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2rem;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border-light);
+}
+
+/* Input Groups */
+.input-group {
+    margin-bottom: 1.5rem;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.input-group input,
+.input-group textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border-light);
+    border-radius: 0.75rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.input-group input:hover,
+.input-group textarea:hover {
+    background: rgba(30, 41, 59, 0.8);
+}
+
+.input-group input:focus,
+.input-group textarea:focus,
+.input-group select:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2);
+    background: rgba(30, 41, 59, 0.9);
+}
+
+.input-group input::placeholder,
+.input-group textarea::placeholder {
+    color: var(--text-muted);
+}
+
+/* выпадающий список */
+.input-group select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--border-light);
+    border-radius: 0.75rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: var(--transition);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 16px;
+}
+
+.input-group select:hover {
+    background-color: rgba(30, 41, 59, 0.8);
+    border-color: var(--gold);
+}
+
+.input-group select option {
+    background: #1e293b;
+    color: var(--text-primary);
+    padding: 0.5rem;
+}
+
+
+
+.input-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    align-items: end;
+}
+
+.input-row.two-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    align-items: end;
+}
+
+.input-row.three-columns {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    align-items: end;
+}
+
+.input-row.four-columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.input-row.four-columns .input-group {
+    flex: 1;
+    min-width: 120px;
+}
+
+
+
+.interval-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    width: 100%;
+}
+
+.interval-group {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.interval-label {
+    display: block;
+    font-size: 0.85em;
+    margin-bottom: 0.25rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.interval-group input {
+    height: 48px;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-light);
+    border-radius: 0.75rem;
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+
+.interval-group input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2);
+}
+
+
+
+
+.system-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.system-eq {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-light);
+    border-radius: 0.75rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.system-eq:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2);
+}
+
+.equation-input-wrapper {
+    margin-bottom: 0.5rem;
+}
+
+.equation-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+
+
+
+.vector-input-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+}
+
+.vector-bracket {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--gold);
+    line-height: 1;
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+}
+
+.vector-input-field {
+    width: 50px !important;
+    height: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    padding: 0 !important;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-light);
+    border-radius: 0.75rem;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: var(--transition);
+    box-sizing: border-box;
+    flex-shrink: 0;
+    flex-grow: 0;
+}
+
+.vector-input-field:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2);
+}
+
+.vector-separator {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--text-secondary);
+    line-height: 1;
+    flex-shrink: 0;
+    width: 10px;
+    text-align: center;
+}
+
+.vector-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: 8px;
+    font-style: italic;
+}
+
+
+
+
+.info-box {
+    background: rgba(99, 102, 241, 0.1);
+    border-left: 4px solid var(--gold);
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.info-box i {
+    color: var(--gold);
+    font-size: 1.2rem;
+}
+
+.info-box span {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+
+
+
+.input-hint {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    font-weight: 400;
+    display: block;
+    margin-top: 0.25rem;
+    font-style: italic;
+}
+
+/* анимации */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#system-method-inputs,
+#method-inputs-container {
+    animation: slideDown 0.3s ease-out;
+}
+
+.method-help {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-left: 4px solid var(--gold);
+    border-radius: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    transition: var(--transition);
+}
+
+.method-help h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--gold-light);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.method-help h4::before {
+    content: '\f059';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: var(--gold);
+}
+
+.method-help p {
+    margin: 0.25rem 0;
+    line-height: 1.5;
+}
+
+.method-help .formula {
+    font-family: monospace;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    overflow-x: auto;
+}
+
+/* адаптивность */
+@media (max-width: 992px) {
+    .input-row.two-columns,
+    .input-row.three-columns {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .input-row.four-columns {
+        flex-direction: column;
+    }
+    
+    .input-row.four-columns .input-group {
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .input-section {
+        padding: 1.5rem;
+    }
+    
+    .interval-inputs {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    .vector-input-container {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .vector-input-field {
+        width: 45px !important;
+        height: 45px !important;
+        min-width: 45px !important;
+        max-width: 45px !important;
+        font-size: 14px;
+    }
+    
+    .vector-bracket {
+        font-size: 20px;
+        width: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .input-group input,
+    .input-group select,
+    .system-eq {
+        padding: 0.6rem 0.75rem;
+        font-size: 14px;
+    }
+    
+    .vector-input-field {
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        max-width: 40px !important;
+        font-size: 12px;
+    }
+}
