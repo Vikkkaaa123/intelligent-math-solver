@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="css/forms.css">
     <link rel="stylesheet" href="css/tables.css">
     <link rel="stylesheet" href="css/charts.css">
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mathjs@latest/lib/browser/math.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -27,6 +29,10 @@
         <main class="main-content">
             <nav class="tabs-navigation">
                 <div class="tabs-container">
+                    <button class="tab-button" data-tab="neural">
+                      <i class="fas fa-brain"></i>
+                         Нейросеть
+                    </button>
                     <button class="tab-button active" data-tab="equations">
                         <i class="fas fa-chart-line"></i>
                         Уравнения
@@ -49,6 +55,46 @@
         
             
  <div class="tabs-content">
+
+
+
+    <!-- Вкладка: Нейросеть -->
+<div id="neural-tab" class="tab-pane">
+    <div class="tab-header">
+        <h2><i class="fas fa-brain"></i> Нейросетевое решение</h2>
+        <p>Опишите математическую задачу словами, и нейросеть решит её</p>
+    </div>
+    
+    <div class="input-section">
+        <div class="input-group">
+            <label for="neural-query">Введите задачу на русском языке:</label>
+            <textarea id="neural-query" rows="4" 
+                placeholder="Примеры:&#10;• реши уравнение x в квадрате минус 4 равно 0&#10;• найди интеграл от 0 до 1 от x в квадрате dx&#10;• реши дифференциальное уравнение y' = x + y, y(0)=1&#10;• реши систему x + y = 2, x - y = 0"></textarea>
+        </div>
+        
+        <div class="button-group">
+            <button class="calculate-btn" id="neural-solve-btn">
+                <i class="fas fa-microchip"></i> Решить нейросетью
+            </button>
+        </div>
+    </div>
+    
+    <div class="results-section">
+        <div class="section-header">
+            <h3><i class="fas fa-robot"></i> Результат нейросети</h3>
+        </div>
+        <div id="neural-results" class="results-container">
+            <div class="info-message">
+                <i class="fas fa-info-circle"></i>
+                Введите математическую задачу и нажмите "Решить"
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
 
 <!-- Вкладка: Уравнения -->
 <div id="equations-tab" class="tab-pane active">

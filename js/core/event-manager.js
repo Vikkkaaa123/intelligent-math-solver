@@ -19,6 +19,8 @@ import EquationMethodSelector from '../numerical-methods/equations/method-select
 import IntegrationMethodSelector from '../numerical-methods/integration/method-selector.js';
 import DifferentialMethodSelector from '../numerical-methods/differential/method-selector.js';
 import SystemMethodSelector from '../numerical-methods/systems/method-selector.js';
+import NeuralSolver from '../neural/neural-solver.js';
+
 
 class EventManager {
     constructor() {
@@ -26,10 +28,11 @@ class EventManager {
         this.chartBuilder = null;
         this.mathParserDE = null;
         this.systemParser = null;
-    }
+        this.neuralSolver = null;
+}
 
 
-    initialize(appInstance) {
+    async initialize(appInstance) {
     this.app = appInstance;
     this.mathParserDE = new MathParserDE();
     this.mathParserDE.initialize();
@@ -45,6 +48,10 @@ class EventManager {
     this.setupIntegrationInterface();
     this.setupDifferentialInterface();
     this.setupSystemInterface();
+    this.neuralSolver = new NeuralSolver();
+    await this.neuralSolver.initialize();
+    console.log('Нейросеть инициализирована');
+    
 }
 
 
@@ -302,7 +309,189 @@ setupSystemInterface() {
         document.getElementById('compare-diff-methods')?.addEventListener('click', () => this.compareDiffMethods());
         document.getElementById('calculate-system')?.addEventListener('click', () => this.solveSystem());
         document.getElementById('compare-system-methods')?.addEventListener('click', () => this.compareSystemMethods());
+        document.getElementById('neural-solve-btn')?.addEventListener('click', () => this.solveWithNeural());
     }
+
+
+
+
+    //Нейросеть
+async solveWithNeural() {
+    const queryTextarea = document.getElementById('neural-query');
+    const query = queryTextarea?.value.trim();
+    
+    if (!query) {
+        this.app.showError('Введите математическую задачу');
+        return;
+    }
+    
+    this.app.setLoadingState(true);
+    const resultsContainer = document.getElementById('neural-results');
+    
+    try {
+        // 1. Парсим запрос нейросетью
+        const parsed = this.neuralSolver.parseQuery(query);
+        console.log('Распознано:', parsed);
+        
+        // 2. Показываем, что распознали
+        resultsContainer.innerHTML = `
+            <div class="result-info">
+                <i class="fas fa-brain"></i>
+                <strong>Нейросеть распознала:</strong>
+                <p>Тип задачи: ${this.getTaskTypeName(parsed.taskType)}</p>
+                <p>Выражение: ${parsed.expression || '—'}</p>
+                ${parsed.params.a !== undefined ? `<p>Пределы: от ${parsed.params.a} до ${parsed.params.b}</p>` : ''}
+                ${parsed.params.x0 !== undefined ? `<p>Начальные условия: y(${parsed.params.x0}) = ${parsed.params.y0}</p>` : ''}
+                <div class="loading-spinner">🤖 Вычисляю...</div>
+            </div>
+        `;
+        
+        // 3. Вызываем соответствующий численный метод
+        let result;
+        switch (parsed.taskType) {
+            case 'equation':
+                result = await this.solveEquationFromNeural(parsed);
+                break;
+            case 'integral':
+                result = await this.solveIntegralFromNeural(parsed);
+                break;
+            case 'ode':
+                result = await this.solveODEFromNeural(parsed);
+                break;
+            case 'system':
+                result = await this.solveSystemFromNeural(parsed);
+                break;
+            default:
+                throw new Error('Неизвестный тип задачи');
+        }
+        
+        // 4. Показываем результат
+        const response = this.neuralSolver.generateResponse(parsed, result);
+        resultsContainer.innerHTML = `
+            <div class="result-success">
+                <div class="result-main">
+                    <div class="result-icon">🧠</div>
+                    <div class="result-text">Нейросеть решила задачу!</div>
+                </div>
+                <div class="result-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Распознано:</span>
+                        <span class="detail-value">${parsed.originalText}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Тип:</span>
+                        <span class="detail-value">${this.getTaskTypeName(parsed.taskType)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Решение:</span>
+                        <span class="detail-value"><pre>${response}</pre></span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Ошибка нейросети:', error);
+        resultsContainer.innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                Ошибка: ${error.message}
+            </div>
+        `;
+    } finally {
+        this.app.setLoadingState(false);
+    }
+
+    if (result && result.converged) {
+    await this.saveResultToDatabase(
+        parsed.taskType,
+        parsed.expression,
+        parsed.recommendedMethod,
+        result
+    );
+}
+}
+
+// Вспомогательные методы
+getTaskTypeName(type) {
+    const names = {
+        equation: '📐 Уравнение',
+        integral: '∫ Интеграл',
+        ode: '📈 Дифференциальное уравнение',
+        system: '🔢 Система уравнений'
+    };
+    return names[type] || type;
+}
+
+async solveEquationFromNeural(parsed) {
+    // Очищаем выражение от лишних слов
+    let func = parsed.expression;
+    
+    // Убираем слово "уравнения" если осталось
+    func = func.replace(/уравнения?/gi, '');
+    func = func.trim();
+    
+    // Если выражение пустое, пробуем извлечь из исходного текста
+    if (!func || func === '') {
+        const match = parsed.originalText.match(/([хx]\s*[\+\-\*/]?\s*\d+)/i);
+        if (match) {
+            func = match[0].replace(/[хx]/g, 'x');
+        } else {
+            func = 'x - 6'; // значение по умолчанию для теста
+        }
+    }
+    
+    console.log('Решаем уравнение:', func);
+    
+    const x0 = 1.0; // начальное приближение
+    const precision = 0.0001;
+    
+    if (!this.methods.newton) {
+        return { converged: false, message: 'Метод Ньютона не загружен' };
+    }
+    
+    try {
+        const result = this.methods.newton.solve(func, x0, precision);
+        return result;
+    } catch (error) {
+        return { converged: false, message: 'Ошибка: ' + error.message };
+    }
+}
+
+
+async solveIntegralFromNeural(parsed) {
+    const func = parsed.expression;
+    const a = parsed.params.a || 0;
+    const b = parsed.params.b || 1;
+    
+    if (!this.methods.simpson) {
+        return { converged: false, message: 'Метод Симпсона не загружен' };
+    }
+    
+    const result = this.methods.simpson.solve(func, a, b, 0.0001, 100, 50);
+    return result;
+}
+
+async solveODEFromNeural(parsed) {
+    const equation = parsed.expression;
+    const x0 = parsed.params.x0 || 0;
+    const y0 = parsed.params.y0 || 1;
+    const xEnd = 1;
+    const step = 0.1;
+    
+    if (!this.methods.euler) {
+        return { converged: false, message: 'Метод Эйлера не загружен' };
+    }
+    
+    const result = this.methods.euler.solve(equation, x0, y0, xEnd, step);
+    return result;
+}
+
+async solveSystemFromNeural(parsed) {
+    // Для системы нужен парсинг уравнений из строки
+    // Пока возвращаем заглушку
+    return { converged: false, message: 'Решение систем из текста пока в разработке' };
+}
 
 
 
@@ -360,6 +549,13 @@ setupSystemInterface() {
                 return;
         }
         
+        if (result && result.converged) {
+    const func = document.getElementById('equation-function')?.value;
+    const method = document.getElementById('equation-method')?.value;
+    await this.saveResultToDatabase('equation', func, method, result);
+}
+
+
         this.displayEquationResult(result);
         this.app.setLoadingState(false);
     } catch (error) {
@@ -730,6 +926,12 @@ displayEquationResult(result) {
                 return;
         }
         
+        if (result && result.converged) {
+        const func = document.getElementById('integration-function')?.value;
+        const method = document.getElementById('integration-method')?.value;
+        await this.saveResultToDatabase('integral', func, method, result);
+}
+
         this.displayIntegrationResult(result);
         this.app.setLoadingState(false);
         
@@ -1107,6 +1309,12 @@ displayIntegrationResult(result) {
                 this.app.setLoadingState(false);
                 return;
         }
+
+        if (result && result.converged) {
+        const equation = document.getElementById('diff-equation')?.value;
+        const method = document.getElementById('diff-method')?.value;
+        await this.saveResultToDatabase('ode', equation, method, result);
+}
         
         this.displayDifferentialResult(result);
         this.app.setLoadingState(false);
@@ -1407,6 +1615,15 @@ async solveSystem() {
         result.matrix = result.matrix || matrix;
         result.vector = result.vector || vector;
         result.variables = result.variables || variables;
+
+
+        if (result && result.converged) {
+    // Собираем уравнения системы в одну строку
+    const eqInputs = document.querySelectorAll('.system-eq');
+    const equations = Array.from(eqInputs).map(inp => inp.value).join('; ');
+    const method = document.getElementById('system-method')?.value;
+    await this.saveResultToDatabase('system', equations, method, result);
+}
         
         this.displaySystemResult(result);
         this.app.setLoadingState(false);
@@ -2407,6 +2624,36 @@ showSystemMethodHelp(method) {
         <div class="formula">${help.formula}</div>
     `;
     container.style.display = 'block';
+}
+
+
+
+
+// Общий метод сохранения результата в БД
+async saveResultToDatabase(taskType, expression, method, result) {
+    if (!this.neuralSolver) return;
+    
+    const converged = result.converged === true;
+    let resultValue = null;
+    
+    // Извлекаем значение результата в зависимости от типа
+    if (taskType === 'equation') {
+        resultValue = result.root;
+    } else if (taskType === 'integral') {
+        resultValue = result.result;
+    } else if (taskType === 'ode') {
+        resultValue = result.final_y;
+    } else if (taskType === 'system') {
+        resultValue = result.solution;
+    }
+    
+    await this.neuralSolver.saveResult(
+        taskType,
+        expression,
+        method,
+        converged,
+        resultValue
+    );
 }
 
 }
