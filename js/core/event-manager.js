@@ -346,31 +346,31 @@ async solveWithNeural() {
             </div>
         `;
         
-        // 3. Вызываем соответствующий численный метод
-        let result;
-        switch (parsed.taskType) {
-            case 'equation':
-                result = await this.solveEquationFromNeural(parsed);
-                break;
-            case 'integral':
-                result = await this.solveIntegralFromNeural(parsed);
-                break;
-            case 'ode':
-                result = await this.solveODEFromNeural(parsed);
-                break;
-            case 'system':
-                result = await this.solveSystemFromNeural(parsed);
-                break;
-            default:
-                throw new Error('Неизвестный тип задачи');
-        }
+            // 3. Вызываем соответствующий численный метод
+    let result;
+    switch (parsed.taskType) {
+        case 'equation':
+            result = await this.solveEquationFromNeural(parsed);
+            break;
+        case 'integral':
+            result = await this.solveIntegralFromNeural(parsed);
+            break;
+        case 'ode':
+            result = await this.solveODEFromNeural(parsed);
+            break;
+        case 'system':
+            result = await this.solveSystemFromNeural(parsed);
+            break;
+        default:
+            throw new Error('Неизвестный тип задачи');
+    }
         
         // 4. Показываем результат
         const response = this.neuralSolver.generateResponse(parsed, result);
         resultsContainer.innerHTML = `
             <div class="result-success">
                 <div class="result-main">
-                    <div class="result-icon">🧠</div>
+                    <div class="result-icon"></div>
                     <div class="result-text">Нейросеть решила задачу!</div>
                 </div>
                 <div class="result-details">
@@ -424,26 +424,40 @@ getTaskTypeName(type) {
 }
 
 async solveEquationFromNeural(parsed) {
-    // Очищаем выражение от лишних слов
+    // Очищаем выражение
     let func = parsed.expression;
-    
-    // Убираем слово "уравнения" если осталось
-    func = func.replace(/уравнения?/gi, '');
-    func = func.trim();
     
     // Если выражение пустое, пробуем извлечь из исходного текста
     if (!func || func === '') {
-        const match = parsed.originalText.match(/([хx]\s*[\+\-\*/]?\s*\d+)/i);
+        const match = parsed.originalText.match(/(\d*x\s*[+\-*/]?\s*\d+)/i);
         if (match) {
             func = match[0].replace(/[хx]/g, 'x');
         } else {
-            func = 'x - 6'; // значение по умолчанию для теста
+            func = 'x-3'; // значение по умолчанию
         }
+    }
+    
+    // Дополнительная очистка
+    func = func
+        .replace(/[^0-9x\s\+\-\*\/\^]/gi, '') // убираем всё кроме математики
+        .replace(/\s+/g, '')
+        .trim();
+    
+    // Если функция пустая или это просто число
+    if (!func || /^\d+$/.test(func)) {
+        func = 'x-3';
+    }
+    
+    // Если нет переменной x, добавляем
+    if (!func.includes('x') && !func.includes('х')) {
+        func = func + '-x';
     }
     
     console.log('Решаем уравнение:', func);
     
-    const x0 = 1.0; // начальное приближение
+    // Автоматически определяем интервал для метода половинного деления
+    // или используем метод Ньютона
+    const x0 = 1.0;
     const precision = 0.0001;
     
     if (!this.methods.newton) {
@@ -451,7 +465,54 @@ async solveEquationFromNeural(parsed) {
     }
     
     try {
+        // Пробуем метод Ньютона
         const result = this.methods.newton.solve(func, x0, precision);
+        
+        // Если не сошелся, пробуем метод половинного деления
+        if (!result.converged && this.methods.bisection) {
+            console.log('Метод Ньютона не сошелся, пробуем метод половинного деления');
+            const a = 0;
+            const b = 10;
+            const bisectionResult = this.methods.bisection.solve(func, a, b, precision);
+            if (bisectionResult.converged) {
+                return bisectionResult;
+            }
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('Ошибка решения:', error);
+        return { converged: false, message: 'Ошибка: ' + error.message };
+    }
+}
+
+
+async solveIntegralFromNeural(parsed) {
+    let func = parsed.expression;
+    const a = parsed.params.a || 0;
+    const b = parsed.params.b || 1;
+    
+    // Очистка выражения
+    func = func
+        .replace(/[^0-9x\s\+\-\*/\(\)]/gi, '')
+        .trim();
+    
+    if (!func || func === '') {
+        func = 'x^2';
+    }
+    
+    if (!func.includes('x')) {
+        func = func + '*x';
+    }
+    
+    console.log('Вычисляем интеграл:', func, 'от', a, 'до', b);
+    
+    if (!this.methods.simpson) {
+        return { converged: false, message: 'Метод Симпсона не загружен' };
+    }
+    
+    try {
+        const result = this.methods.simpson.solve(func, a, b, 0.0001, 100, 50);
         return result;
     } catch (error) {
         return { converged: false, message: 'Ошибка: ' + error.message };
@@ -459,38 +520,110 @@ async solveEquationFromNeural(parsed) {
 }
 
 
-async solveIntegralFromNeural(parsed) {
-    const func = parsed.expression;
-    const a = parsed.params.a || 0;
-    const b = parsed.params.b || 1;
-    
-    if (!this.methods.simpson) {
-        return { converged: false, message: 'Метод Симпсона не загружен' };
-    }
-    
-    const result = this.methods.simpson.solve(func, a, b, 0.0001, 100, 50);
-    return result;
-}
-
 async solveODEFromNeural(parsed) {
-    const equation = parsed.expression;
-    const x0 = parsed.params.x0 || 0;
-    const y0 = parsed.params.y0 || 1;
+    let equation = parsed.expression;
+    const x0 = parsed.params.x0 !== undefined ? parsed.params.x0 : 0;
+    const y0 = parsed.params.y0 !== undefined ? parsed.params.y0 : 1;
     const xEnd = 1;
     const step = 0.1;
+    
+    // Очистка уравнения
+    equation = equation
+        .replace(/[^0-9xy\s\+\-\*/\(\)]/gi, '')
+        .trim();
+    
+    if (!equation || equation === '') {
+        equation = 'x+y';
+    }
+    
+    console.log('Решаем ДУ:', equation, 'с начальными условиями y(', x0, ')=', y0);
     
     if (!this.methods.euler) {
         return { converged: false, message: 'Метод Эйлера не загружен' };
     }
     
-    const result = this.methods.euler.solve(equation, x0, y0, xEnd, step);
-    return result;
+    try {
+        const result = this.methods.euler.solve(equation, x0, y0, xEnd, step);
+        return result;
+    } catch (error) {
+        return { converged: false, message: 'Ошибка: ' + error.message };
+    }
 }
 
+
 async solveSystemFromNeural(parsed) {
-    // Для системы нужен парсинг уравнений из строки
-    // Пока возвращаем заглушку
-    return { converged: false, message: 'Решение систем из текста пока в разработке' };
+    // Парсим уравнения из текста
+    const text = parsed.originalText;
+    let equations = [];
+    
+    // Извлекаем уравнения из текста
+    // Ищем паттерны вида: x-3=9, 3x+8=2, x+y=5, и т.д.
+    const equationPattern = /([a-z]\s*[+\-*/]?\s*\d*\s*[=]\s*\d+)/gi;
+    const matches = text.match(equationPattern);
+    
+    if (matches && matches.length >= 2) {
+        equations = matches;
+    } else {
+        // Альтернативный парсинг: ищем два уравнения через пробел или запятую
+        const parts = text.split(/[\s,;]+/);
+        for (const part of parts) {
+            if (part.includes('=')) {
+                equations.push(part);
+            }
+        }
+    }
+    
+    if (equations.length < 2) {
+        return { converged: false, message: 'Не удалось распознать систему уравнений. Пример: x+y=5, x-y=1' };
+    }
+    
+    console.log('Распознанные уравнения:', equations);
+    
+    // Парсим уравнения в матрицу
+    try {
+        const { matrix, vector, variables } = this.systemParser.parseEquations(equations);
+        
+        console.log('Матрица:', matrix);
+        console.log('Вектор:', vector);
+        
+        // Проверяем, что система 2x2
+        if (matrix.length !== 2 || matrix[0].length !== 2) {
+            return { converged: false, message: 'Нейросеть пока решает только системы 2×2' };
+        }
+        
+        // Используем метод Гаусса
+        const result = this.methods.gauss.solve(matrix, vector, variables);
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Ошибка парсинга системы:', error);
+        return { converged: false, message: 'Ошибка: ' + error.message };
+    }
+}
+
+
+
+// Добавьте этот метод в класс MathParser
+validateExpression(expression) {
+    if (!expression || typeof expression !== 'string') {
+        return false;
+    }
+    
+    // Проверяем, что есть переменная или числа
+    const hasValidContent = /[0-9x]/.test(expression);
+    if (!hasValidContent) return false;
+    
+    // Проверяем баланс скобок
+    let balance = 0;
+    for (const char of expression) {
+        if (char === '(') balance++;
+        if (char === ')') balance--;
+        if (balance < 0) return false;
+    }
+    if (balance !== 0) return false;
+    
+    return true;
 }
 
 
