@@ -8,7 +8,7 @@ class NumericalExplorer {
         this.eventManager = new EventManager();
         this.mathParser = new MathParser();
         
-        this.currentTab = 'equations';
+        this.currentTab = 'neural';
         this.isCalculating = false;
         
         this.elements = {};

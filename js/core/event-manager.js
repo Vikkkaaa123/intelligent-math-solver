@@ -301,116 +301,216 @@ setupSystemInterface() {
 
 //настройка обработчиков кнопок расчета - привязывает функции расчета к соответсвующим кнопкам
     setupCalculationHandlers() {
-        document.getElementById('calculate-equation')?.addEventListener('click', () => this.solveEquation());
-        document.getElementById('compare-equation-methods')?.addEventListener('click', () => this.compareEquationMethods());
-        document.getElementById('calculate-integration')?.addEventListener('click', () => this.solveIntegration());
-        document.getElementById('compare-integration-methods')?.addEventListener('click', () => this.compareIntegrationMethods());
-        document.getElementById('calculate-differential')?.addEventListener('click', () => this.solveDifferential());
-        document.getElementById('compare-diff-methods')?.addEventListener('click', () => this.compareDiffMethods());
-        document.getElementById('calculate-system')?.addEventListener('click', () => this.solveSystem());
-        document.getElementById('compare-system-methods')?.addEventListener('click', () => this.compareSystemMethods());
-        document.getElementById('neural-solve-btn')?.addEventListener('click', () => this.solveWithNeural());
+    document.getElementById('calculate-equation')?.addEventListener('click', () => this.solveEquation());
+    document.getElementById('compare-equation-methods')?.addEventListener('click', () => this.compareEquationMethods());
+    document.getElementById('calculate-integration')?.addEventListener('click', () => this.solveIntegration());
+    document.getElementById('compare-integration-methods')?.addEventListener('click', () => this.compareIntegrationMethods());
+    document.getElementById('calculate-differential')?.addEventListener('click', () => this.solveDifferential());
+    document.getElementById('compare-diff-methods')?.addEventListener('click', () => this.compareDiffMethods());
+    document.getElementById('calculate-system')?.addEventListener('click', () => this.solveSystem());
+    document.getElementById('compare-system-methods')?.addEventListener('click', () => this.compareSystemMethods());
+    document.getElementById('neural-solve-btn')?.addEventListener('click', () => this.solveWithNeural());
+    document.getElementById('chat-send-btn')?.addEventListener('click', () => this.solveWithNeural());
+    // Отправка по Enter 
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.solveWithNeural();
+            }
+        });
     }
+}
 
 
 
 
     //Нейросеть
 async solveWithNeural() {
-    const queryTextarea = document.getElementById('neural-query');
-    const query = queryTextarea?.value.trim();
+    const inputTextarea = document.getElementById('chat-input');
+    const query = inputTextarea?.value.trim();
     
-    if (!query) {
-        this.app.showError('Введите математическую задачу');
+    if (!query) return;
+    
+    // === ПРОВЕРКА НА ОСМЫСЛЕННОСТЬ ЗАПРОСА ===
+    const hasMath = /[0-9x=+\-*/^()]/.test(query);
+    const hasRussianLetters = /[а-яё]/i.test(query);
+    const hasDigits = /\d/.test(query);
+    
+    // Если есть русские буквы, но нет математических символов и нет цифр - это не задача
+    if (hasRussianLetters && !hasMath && !hasDigits) {
+        this.addChatMessage('user', query);
+        this.addChatMessage('neural', '😊 Я понимаю только математические задачи.\n\nНапример:\n• реши уравнение x-9=1\n• интеграл x^2 от 0 до 2\n• диффур y\' = x + y, y(0)=1');
+        inputTextarea.value = '';
         return;
     }
     
-    this.app.setLoadingState(true);
-    const resultsContainer = document.getElementById('neural-results');
+    // Если вообще нет ни цифр, ни x, ни операторов
+    if (!hasDigits && !query.includes('x') && !query.includes('=') && !query.includes('+') && !query.includes('-')) {
+        this.addChatMessage('user', query);
+        this.addChatMessage('neural', '😊 Не поняла. Напишите математическую задачу.\n\nНапример: "реши уравнение x-9=1"');
+        inputTextarea.value = '';
+        return;
+    }
+    
+    // Очищаем поле ввода
+    inputTextarea.value = '';
+    
+    const messagesContainer = document.getElementById('chat-messages');
+    
+    // Добавляем сообщение пользователя
+    this.addChatMessage('user', query);
+    
+    // Показываем индикатор печати
+    const typingId = this.showTypingIndicator();
     
     try {
-        // 1. Парсим запрос нейросетью
-        const parsed = this.neuralSolver.parseQuery(query);
-        console.log('Распознано:', parsed);
+        // ВАЖНО: проверяем, есть ли активная сессия в нейросети
+        // Если нейросеть ждёт ответ, передаём isAnswer = true
+        const isAnswer = this.neuralSolver.chat.waitingForInput;
         
-        // 2. Показываем, что распознали
-        resultsContainer.innerHTML = `
-            <div class="result-info">
-                <i class="fas fa-brain"></i>
-                <strong>Нейросеть распознала:</strong>
-                <p>Тип задачи: ${this.getTaskTypeName(parsed.taskType)}</p>
-                <p>Выражение: ${parsed.expression || '—'}</p>
-                ${parsed.params.a !== undefined ? `<p>Пределы: от ${parsed.params.a} до ${parsed.params.b}</p>` : ''}
-                ${parsed.params.x0 !== undefined ? `<p>Начальные условия: y(${parsed.params.x0}) = ${parsed.params.y0}</p>` : ''}
-                <div class="loading-spinner">🤖 Вычисляю...</div>
-            </div>
-        `;
+        console.log('isAnswer:', isAnswer, 'waitingForInput:', this.neuralSolver.chat.waitingForInput);
         
-            // 3. Вызываем соответствующий численный метод
-    let result;
-    switch (parsed.taskType) {
-        case 'equation':
-            result = await this.solveEquationFromNeural(parsed);
-            break;
-        case 'integral':
-            result = await this.solveIntegralFromNeural(parsed);
-            break;
-        case 'ode':
-            result = await this.solveODEFromNeural(parsed);
-            break;
-        case 'system':
-            result = await this.solveSystemFromNeural(parsed);
-            break;
-        default:
-            throw new Error('Неизвестный тип задачи');
-    }
+        const response = this.neuralSolver.processQuery(query, isAnswer);
         
-        // 4. Показываем результат
-        const response = this.neuralSolver.generateResponse(parsed, result);
-        resultsContainer.innerHTML = `
-            <div class="result-success">
-                <div class="result-main">
-                    <div class="result-icon"></div>
-                    <div class="result-text">Нейросеть решила задачу!</div>
-                </div>
-                <div class="result-details">
-                    <div class="detail-row">
-                        <span class="detail-label">Распознано:</span>
-                        <span class="detail-value">${parsed.originalText}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Тип:</span>
-                        <span class="detail-value">${this.getTaskTypeName(parsed.taskType)}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Решение:</span>
-                        <span class="detail-value"><pre>${response}</pre></span>
-                    </div>
-                </div>
-            </div>
-        `;
+        console.log('Ответ нейросети:', response);
+        
+        // Убираем индикатор печати
+        this.removeTypingIndicator(typingId);
+        
+        if (response.isQuestion) {
+            // Нейросеть задаёт вопрос
+            this.addChatMessage('neural', response.message);
+        } else {
+            // Решаем задачу
+            let result;
+            switch (response.parsed.taskType) {
+                case 'equation':
+                    result = await this.solveEquationFromNeural(response.parsed);
+                    break;
+                case 'integral':
+                    result = await this.solveIntegralFromNeural(response.parsed);
+                    break;
+                case 'ode':
+                    result = await this.solveODEFromNeural(response.parsed);
+                    break;
+                case 'system':
+                    result = await this.solveSystemFromNeural(response.parsed);
+                    break;
+            }
+            
+            const answer = this.formatShortAnswer(response.parsed, result);
+            this.addChatMessage('neural', answer);
+        }
         
     } catch (error) {
-        console.error('Ошибка нейросети:', error);
-        resultsContainer.innerHTML = `
-            <div class="error-message">
-                <i class="fas fa-exclamation-triangle"></i>
-                Ошибка: ${error.message}
-            </div>
-        `;
-    } finally {
-        this.app.setLoadingState(false);
+    console.error('Ошибка нейросети:', error);
+    
+    let userFriendlyMessage = '😕 Извините, я не поняла ваш запрос.\n\nПопробуйте написать так:\n• "реши уравнение x-9=1"\n• "интеграл x^2 от 0 до 2"\n• "диффур y\' = x + y, y(0)=1"\n• "система x+y=5, x-y=1"';
+    
+    if (error.message === 'Не удалось распознать задачу') {
+        userFriendlyMessage = '😕 Не поняла, что нужно сделать.\n\nНапишите, например:\n• "реши уравнение x^2-4=0"\n• "вычисли интеграл x^2 от 0 до 2"';
     }
+    
+    this.addChatMessage('neural', userFriendlyMessage);
+}
+    
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
 
-    if (result && result.converged) {
-    await this.saveResultToDatabase(
-        parsed.taskType,
-        parsed.expression,
-        parsed.recommendedMethod,
-        result
-    );
+
+
+addChatMessage(sender, text) {
+    const messagesContainer = document.getElementById('chat-messages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${sender}`;
+    
+    if (sender === 'neural') {
+        messageDiv.innerHTML = `
+            <div class="chat-avatar">
+                <i class="fas fa-brain"></i>
+            </div>
+            <div class="chat-bubble">${this.formatMessageText(text)}</div>
+        `;
+    } else {
+        messageDiv.innerHTML = `
+            <div class="chat-bubble">${this.formatMessageText(text)}</div>
+        `;
+    }
+    
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
+
+showTypingIndicator() {
+    const messagesContainer = document.getElementById('chat-messages');
+    const id = 'typing-' + Date.now();
+    const typingDiv = document.createElement('div');
+    typingDiv.id = id;
+    typingDiv.className = 'chat-message neural';
+    typingDiv.innerHTML = `
+        <div class="chat-avatar">
+            <i class="fas fa-brain"></i>
+        </div>
+        <div class="chat-bubble">
+            <div class="typing">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+    `;
+    messagesContainer.appendChild(typingDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    return id;
 }
+
+removeTypingIndicator(id) {
+    const element = document.getElementById(id);
+    if (element) element.remove();
+}
+
+formatMessageText(text) {
+    if (!text) return '';
+    // Преобразуем переносы строк в <br>
+    return text.replace(/\n/g, '<br>');
+}
+
+formatShortAnswer(parsed, result) {
+    let answer = '';
+    
+    if (result.converged) {
+        switch (parsed.taskType) {
+            case 'equation':
+                answer = `📐 **Уравнение** ${parsed.expression}\n\n`;
+                answer += `✅ **Решение:** x = ${result.root?.toFixed(6)}\n`;
+                answer += `📊 **Невязка:** ${result.residual?.toExponential(4)}`;
+                break;
+                
+            case 'integral':
+                answer = `∫ **Интеграл** ${parsed.expression} от ${parsed.params.a} до ${parsed.params.b}\n\n`;
+                answer += `✅ **Значение:** ${result.result?.toFixed(8)}\n`;
+                answer += `📊 **Погрешность:** ${result.iterations?.[result.iterations.length-1]?.error?.toExponential(4) || '< 1e-12'}`;
+                break;
+                
+            case 'ode':
+                answer = `📈 **ДУ:** y' = ${parsed.expression}\n`;
+                answer += `📌 **Условия:** y(${parsed.params.x0}) = ${parsed.params.y0}\n\n`;
+                answer += `✅ **Решение:** y(${result.final_x?.toFixed(4)}) = ${result.final_y?.toFixed(6)}`;
+                break;
+                
+            case 'system':
+                const solution = result.solution?.map((x, i) => `${result.variables?.[i] || `x${i+1}`} = ${x.toFixed(6)}`).join(', ');
+                answer = `🔢 **Система уравнений**\n\n`;
+                answer += `✅ **Решение:** ${solution}`;
+                break;
+        }
+    } else {
+        answer = `❌ **Не удалось решить**\n\n${result.message || 'Попробуйте другую формулировку'}`;
+    }
+    
+    return answer;
+}
+
 
 // Вспомогательные методы
 getTaskTypeName(type) {
@@ -424,39 +524,34 @@ getTaskTypeName(type) {
 }
 
 async solveEquationFromNeural(parsed) {
-    // Очищаем выражение
     let func = parsed.expression;
     
-    // Если выражение пустое, пробуем извлечь из исходного текста
-    if (!func || func === '') {
-        const match = parsed.originalText.match(/(\d*x\s*[+\-*/]?\s*\d+)/i);
-        if (match) {
-            func = match[0].replace(/[хx]/g, 'x');
-        } else {
-            func = 'x-3'; // значение по умолчанию
+    // Специальная проверка для 1/x = 0
+    if (func === '1/x=0' || func === '1/x0' || func.includes('1/x') && func.includes('=0')) {
+        return { 
+            converged: false, 
+            message: 'Уравнение 1/x = 0 не имеет решений. Функция стремится к нулю при x → ∞, но никогда не достигает нуля.' 
+        };
+    }
+    
+    // Очистка
+    func = func
+        .replace(/[^0-9x=+\-*/^]/gi, '')
+        .replace(/\s+/g, '');
+    
+    if (func.includes('=')) {
+        const parts = func.split('=');
+        if (parts.length === 2) {
+            func = `${parts[0]}-(${parts[1]})`;
         }
     }
     
-    // Дополнительная очистка
-    func = func
-        .replace(/[^0-9x\s\+\-\*\/\^]/gi, '') // убираем всё кроме математики
-        .replace(/\s+/g, '')
-        .trim();
-    
-    // Если функция пустая или это просто число
-    if (!func || /^\d+$/.test(func)) {
-        func = 'x-3';
-    }
-    
-    // Если нет переменной x, добавляем
-    if (!func.includes('x') && !func.includes('х')) {
+    if (!func.includes('x')) {
         func = func + '-x';
     }
     
     console.log('Решаем уравнение:', func);
     
-    // Автоматически определяем интервал для метода половинного деления
-    // или используем метод Ньютона
     const x0 = 1.0;
     const precision = 0.0001;
     
@@ -465,12 +560,14 @@ async solveEquationFromNeural(parsed) {
     }
     
     try {
-        // Пробуем метод Ньютона
         const result = this.methods.newton.solve(func, x0, precision);
         
-        // Если не сошелся, пробуем метод половинного деления
+        // Проверка на расходящееся решение (слишком большое число)
+        if (result.converged && result.root && Math.abs(result.root) > 10000) {
+            return { converged: false, message: 'Уравнение, вероятно, не имеет решений или решение стремится к бесконечности' };
+        }
+        
         if (!result.converged && this.methods.bisection) {
-            console.log('Метод Ньютона не сошелся, пробуем метод половинного деления');
             const a = 0;
             const b = 10;
             const bisectionResult = this.methods.bisection.solve(func, a, b, precision);
@@ -481,31 +578,40 @@ async solveEquationFromNeural(parsed) {
         
         return result;
     } catch (error) {
-        console.error('Ошибка решения:', error);
         return { converged: false, message: 'Ошибка: ' + error.message };
     }
 }
 
 
 async solveIntegralFromNeural(parsed) {
-    let func = parsed.expression;
-    const a = parsed.params.a || 0;
-    const b = parsed.params.b || 1;
+    // Получаем выражение и очищаем его
+    let func = parsed.expression || '';
+    const a = parsed.params?.a ?? 1;
+    const b = parsed.params?.b ?? 2;
     
-    // Очистка выражения
-    func = func
-        .replace(/[^0-9x\s\+\-\*/\(\)]/gi, '')
+    console.log('Исходное выражение интеграла:', func);
+    
+    // Жёсткая очистка выражения
+    func = String(func)
+        .toLowerCase()
+        .replace(/[^0-9x\+\-\*\/\^]/g, '')  // оставляем только цифры, x и операторы
+        .replace(/x+/g, 'x')                 // убираем множественные x
+        .replace(/\s+/g, '')                 // убираем пробелы
         .trim();
     
-    if (!func || func === '') {
-        func = 'x^2';
+    // Если после очистки пусто - значение по умолчанию
+    if (!func || func === '' || func === 'x' || func === 'xx') {
+        func = 'x-9';
     }
     
-    if (!func.includes('x')) {
-        func = func + '*x';
+    // Убеждаемся, что есть оператор
+    if (!func.includes('+') && !func.includes('-') && !func.includes('*') && !func.includes('/')) {
+        if (func === 'x') func = 'x-9';
+        else if (!isNaN(func)) func = `x-${func}`;
     }
     
-    console.log('Вычисляем интеграл:', func, 'от', a, 'до', b);
+    console.log('Очищенное выражение интеграла:', func);
+    console.log('Пределы:', a, 'до', b);
     
     if (!this.methods.simpson) {
         return { converged: false, message: 'Метод Симпсона не загружен' };
@@ -513,86 +619,102 @@ async solveIntegralFromNeural(parsed) {
     
     try {
         const result = this.methods.simpson.solve(func, a, b, 0.0001, 100, 50);
+        console.log('Результат интеграла:', result);
         return result;
     } catch (error) {
+        console.error('Ошибка интеграла:', error);
         return { converged: false, message: 'Ошибка: ' + error.message };
     }
 }
 
 
 async solveODEFromNeural(parsed) {
-    let equation = parsed.expression;
-    const x0 = parsed.params.x0 !== undefined ? parsed.params.x0 : 0;
-    const y0 = parsed.params.y0 !== undefined ? parsed.params.y0 : 1;
-    const xEnd = 1;
+    let equation = parsed.expression || '';
+    
+    // Извлекаем параметры из parsed.params (они должны прийти из чата)
+    const x0 = parsed.params?.x0 ?? 0;
+    const y0 = parsed.params?.y0 ?? 1;
+    const xEnd = parsed.params?.xEnd ?? 1;
     const step = 0.1;
     
+    console.log('ДУ - полученные параметры:', { equation, x0, y0, xEnd });
+    
     // Очистка уравнения
-    equation = equation
-        .replace(/[^0-9xy\s\+\-\*/\(\)]/gi, '')
+    equation = String(equation)
+        .toLowerCase()
+        .replace(/[^0-9xy\+\-\*\/\^]/g, '')
+        .replace(/x+/g, 'x')
+        .replace(/y+/g, 'y')
         .trim();
     
-    if (!equation || equation === '') {
-        equation = 'x+y';
+    if (!equation || equation === '' || equation === 'xy') {
+        equation = 'x-y';
     }
     
-    console.log('Решаем ДУ:', equation, 'с начальными условиями y(', x0, ')=', y0);
+    console.log('Очищенное уравнение:', equation);
+    console.log('Начальные условия: y(', x0, ')=', y0, 'до x=', xEnd);
     
-    if (!this.methods.euler) {
-        return { converged: false, message: 'Метод Эйлера не загружен' };
+    if (!this.methods.rungeKutta) {
+        return { converged: false, message: 'Метод Рунге-Кутты не загружен' };
     }
     
     try {
-        const result = this.methods.euler.solve(equation, x0, y0, xEnd, step);
+        const result = this.methods.rungeKutta.solve(equation, x0, y0, xEnd, step);
+        result.parameters = { x0, y0, xEnd, step };
         return result;
     } catch (error) {
+        console.error('Ошибка решения ДУ:', error);
         return { converged: false, message: 'Ошибка: ' + error.message };
     }
 }
 
 
 async solveSystemFromNeural(parsed) {
-    // Парсим уравнения из текста
     const text = parsed.originalText;
     let equations = [];
     
-    // Извлекаем уравнения из текста
-    // Ищем паттерны вида: x-3=9, 3x+8=2, x+y=5, и т.д.
-    const equationPattern = /([a-z]\s*[+\-*/]?\s*\d*\s*[=]\s*\d+)/gi;
+    // Паттерн для уравнений вида: 3x-y=7, 5x+7y=0
+    const equationPattern = /([+-]?\d*[xy]?\s*[+-]\s*\d*[xy]?\s*=\s*[+-]?\d+)/gi;
     const matches = text.match(equationPattern);
     
     if (matches && matches.length >= 2) {
         equations = matches;
     } else {
-        // Альтернативный парсинг: ищем два уравнения через пробел или запятую
+        // Разделяем по пробелам и ищем с '='
         const parts = text.split(/[\s,;]+/);
         for (const part of parts) {
-            if (part.includes('=')) {
+            if (part.includes('=') && /[xy]/.test(part)) {
                 equations.push(part);
             }
         }
     }
     
     if (equations.length < 2) {
-        return { converged: false, message: 'Не удалось распознать систему уравнений. Пример: x+y=5, x-y=1' };
+        return { converged: false, message: 'Не удалось распознать систему уравнений. Пример: 3x-y=7, 5x+7y=0' };
     }
     
     console.log('Распознанные уравнения:', equations);
     
-    // Парсим уравнения в матрицу
     try {
         const { matrix, vector, variables } = this.systemParser.parseEquations(equations);
         
         console.log('Матрица:', matrix);
         console.log('Вектор:', vector);
+        console.log('Переменные:', variables);
         
-        // Проверяем, что система 2x2
-        if (matrix.length !== 2 || matrix[0].length !== 2) {
-            return { converged: false, message: 'Нейросеть пока решает только системы 2×2' };
+        const n = matrix.length;
+        
+        if (n !== 2) {
+            return { converged: false, message: `Нейросеть пока решает только системы 2×2 (получено ${n} уравнений)` };
         }
         
         // Используем метод Гаусса
         const result = this.methods.gauss.solve(matrix, vector, variables);
+        
+        if (result.converged && result.solution) {
+            // Проверяем решение
+            result.message = `Система решена: ${variables[0]} = ${result.solution[0].toFixed(6)}, ${variables[1]} = ${result.solution[1].toFixed(6)}`;
+        }
         
         return result;
         

@@ -1,20 +1,22 @@
 import TextCorrector from './text-corrector.js';
 import TrainedNeuralModel from './trained-model.js';
+import ChatNeural from './chat-neural.js';
 
 class NeuralSolver {
     constructor() {
         this.textCorrector = new TextCorrector();
         this.neuralModel = new TrainedNeuralModel();
+        this.chat = new ChatNeural();
         this.isReady = false;
+        this.onQuestion = null; // Колбэк для вопроса пользователю
     }
     
     async initialize() {
-        // Пытаемся загрузить обученную модель
         const loaded = await this.neuralModel.loadModel();
         
         if (!loaded) {
             console.log('Модель не найдена, обучаем...');
-            await this.neuralModel.train(100, 30); // 100 эпох, 30 примеров на класс
+            await this.neuralModel.train(80, 40);
             await this.neuralModel.saveModel();
         }
         
@@ -22,32 +24,132 @@ class NeuralSolver {
         console.log('Нейросетевая подсистема готова');
     }
     
-    parseQuery(text) {
-        const corrected = this.textCorrector.correctMathExpression(text);
-        const prediction = this.neuralModel.predictTaskType(corrected);
-        const methodRecommendation = this.neuralModel.recommendMethod(prediction.taskType, corrected);
-        const expression = this.extractMath(corrected, prediction.taskType);
-        const params = this.extractParams(corrected, prediction.taskType);
+    // Основной метод для обработки запроса (с поддержкой диалога)
+    processQuery(text, isAnswer = false) {
+    console.log('processQuery called:', { text, isAnswer, waitingForInput: this.chat.waitingForInput });
+    
+    // Если это ответ на вопрос и есть активная сессия
+    if (isAnswer && this.chat.waitingForInput) {
+        console.log('Продолжаем диалог с ответом:', text);
+        const result = this.chat.continueDialog(text);
         
+        if (result.type === 'question') {
+            return {
+                isQuestion: true,
+                message: result.message,
+                waitingFor: result.waitingFor
+            };
+        }
+        
+        // result.type === 'solve'
+        return this.solveWithData(result.data);
+    }
+    
+    // Начинаем новый диалог
+    console.log('Начинаем новый диалог');
+    const result = this.chat.startDialog(text);
+    
+    if (result.type === 'question') {
         return {
-            taskType: prediction.taskType,
-            confidence: prediction.confidence,
-            allProbabilities: prediction.allProbabilities,
-            expression: expression,
-            recommendedMethod: methodRecommendation.method,
-            methodConfidence: methodRecommendation.confidence,
-            methodReason: methodRecommendation.reason,
-            params: params,
-            originalText: text,
-            correctedText: corrected
+            isQuestion: true,
+            message: result.message,
+            waitingFor: result.waitingFor
         };
     }
     
+    // result.type === 'solve'
+    return this.solveWithData(result.data);
+}
+
+    
+    solveWithData(data) {
+    const collected = data.collected;
+    const taskType = data.taskType;
+    
+    let expression = '';
+    let params = {};
+    
+    switch (taskType) {
+        case 'equation':
+            expression = collected.expression || 'x-3=0';
+            params = {};
+            break;
+            
+        case 'integral':
+            // Для интеграла используем collected.integrand
+            expression = collected.integrand || collected.expression || 'x-7';
+            // Очищаем от лишних символов
+            expression = expression.replace(/[^0-9x\+\-\*\/\^]/g, '').replace(/x+/g, 'x');
+            if (!expression || expression === 'x') expression = 'x-7';
+            
+            params = {
+                a: collected.lowerBound ?? 0,
+                b: collected.upperBound ?? 1
+            };
+            console.log('Интеграл:', { expression, params });
+            break;
+            
+        case 'ode':
+    let odeExpr = collected.odeExpression || collected.expression || 'x-y';
+    
+    odeExpr = String(odeExpr)
+        .replace(/x0=\d+/g, '')
+        .replace(/y0=\d+/g, '')
+        .replace(/x_end=\d+/g, '')
+        .replace(/,[^,]*/g, '')
+        .replace(/[^0-9xy\+\-\*\/\^]/g, '')
+        .replace(/x+/g, 'x')
+        .replace(/y+/g, 'y')
+        .trim();
+    
+    if (!odeExpr || odeExpr === '' || odeExpr === 'xy') {
+        odeExpr = 'x-y';
+    }
+    
+    expression = odeExpr;
+    params = {
+        x0: collected.x0 ?? 0,
+        y0: collected.y0 ?? 1,
+        xEnd: collected.xEnd ?? 1
+    };
+    console.log('ДУ после очистки:', expression, params);
+    break;
+            
+        case 'system':
+            expression = collected.equations ? collected.equations.join(', ') : 'x+y=1,x-y=0';
+            params = {};
+            break;
+    }
+    
+    const parsed = {
+        taskType: taskType,
+        confidence: 0.95,
+        allProbabilities: {},
+        expression: expression,
+        recommendedMethod: this.getMethodForType(taskType),
+        methodConfidence: 0.8,
+        methodReason: this.getMethodReason(taskType),
+        params: params,
+        originalText: `${taskType}: ${expression}`,
+        correctedText: expression
+    };
+    
+    return {
+        isQuestion: false,
+        parsed: parsed,
+        fullQuery: expression
+    };
+}
+
+    
     extractMath(text, taskType) {
-    //убираем команды
-    const commands = ['реши', 'найди', 'вычисли', 'уравнение', 'интеграл', 
-                     'дифференциальное', 'система', 'решить', 'найти', 
-                     'уравнения', 'корни', 'найдите'];
+    const commands = [
+        'реши', 'найди', 'вычисли', 'уравнение', 'интеграл', 
+        'дифференциальное', 'система', 'решить', 'найти', 
+        'уравнения', 'корни', 'найдите', 'диффур', 'ду',
+        'рши', 'уровнения', 'интграл', 'диференциалное', 'урвнение',
+        'вычесл', 'посчитать', 'найт'
+    ];
     
     let math = text.toLowerCase();
     
@@ -55,55 +157,44 @@ class NeuralSolver {
         math = math.replace(new RegExp(cmd, 'gi'), '');
     }
     
-    //для уравнений: убираем "=0" если есть, оставляем только левую часть
+    // Заменяем русские буквы
+    math = math.replace(/[чх]/gi, 'x');
+    math = math.replace(/[у]/gi, 'y');
+    math = math.replace(/[а-яё]/gi, '');
+    
+    // Убираем пробелы
+    math = math.replace(/\s+/g, '');
+    
+    // Убираем дублирование
+    math = math.replace(/x{2,}/g, 'x');
+    math = math.replace(/y{2,}/g, 'y');
+    
+    // ВАЖНО: для уравнений сохраняем знак =
     if (taskType === 'equation') {
-        // Если есть "=0", берем левую часть
-        if (math.includes('=0')) {
-            math = math.split('=0')[0];
-        }
-        //если есть просто =, переносим всё влево
-        else if (math.includes('=')) {
-            const parts = math.split('=');
-            if (parts.length === 2) {
-                math = `${parts[0]}-(${parts[1]})`;
-            }
+        // Если есть =, оставляем как есть
+        if (math.includes('=')) {
+            // Ничего не делаем
+        } else {
+            math = math + '=0';
         }
     }
     
-    //для интегралов
+    // Для интегралов - не добавляем =0
     if (taskType === 'integral') {
-        math = math.replace(/от\s*\d+\s*до\s*\d+/g, '');
+        math = math.replace(/=/g, '');
+        math = math.replace(/от\d+до\d+/g, '');
         math = math.replace(/dx/g, '');
-        math = math.replace(/∫/g, '');
     }
     
-    //для ДУ
-    if (taskType === 'ode') {
-        math = math.replace(/y\(\d+\)\s*=\s*\d+/g, '');
-        math = math.replace(/y'=/g, '');
-        math = math.replace(/dy\/dx=/g, '');
-    }
+    // Финальная очистка
+    math = math.replace(/[^0-9xy\+\-\*\/\^=]/g, '');
     
-    //очистка от лишних символов
-    math = math
-        .replace(/[^a-z0-9x\s\+\-\*\/\^\(\)]/gi, '') //оставляем только математические символы
-        .replace(/\s+/g, '') //убираем пробелы
-        .trim();
-    
-    //если после очистки пусто возвращаем пример по умолчанию
-    if (!math || math === '') {
-        if (taskType === 'equation') return 'x-3';
+    if (!math || math === '' || math === '=' || math === '=0') {
+        if (taskType === 'equation') return 'x-3=0';
         if (taskType === 'integral') return 'x^2';
         if (taskType === 'ode') return 'x+y';
         return 'x-0';
     }
-    
-    //заменяем русские буквы на латинские
-    math = math.replace(/[ху]/gi, (match) => {
-        if (match === 'х' || match === 'Х') return 'x';
-        if (match === 'у' || match === 'У') return 'y';
-        return match;
-    });
     
     console.log(`Извлечено выражение: "${math}" (тип: ${taskType})`);
     return math;
@@ -138,26 +229,26 @@ class NeuralSolver {
     }
     
     generateResponse(parsed, result) {
-        let response = `✅ **Нейросеть решила задачу!**\n\n`;
-        response += `📋 **Распознано:** ${parsed.originalText}\n`;
-        response += `🧠 **Тип задачи:** ${this.getTaskTypeName(parsed.taskType)} (уверенность: ${(parsed.confidence * 100).toFixed(1)}%)\n`;
+        let response = `Нейросеть решила задачу!\n\n`;
+        response += `Распознано: ${parsed.originalText}\n`;
+        response += `Тип задачи: ${this.getTaskTypeName(parsed.taskType)} (уверенность: ${(parsed.confidence * 100).toFixed(1)}%)\n`;
         
         if (parsed.allProbabilities && Object.keys(parsed.allProbabilities).length > 0) {
-            response += `📊 **Вероятности:** уравнение=${(parsed.allProbabilities.equation*100).toFixed(1)}%, интеграл=${(parsed.allProbabilities.integral*100).toFixed(1)}%, ДУ=${(parsed.allProbabilities.ode*100).toFixed(1)}%, система=${(parsed.allProbabilities.system*100).toFixed(1)}%\n`;
+            response += `Вероятности: уравнение=${(parsed.allProbabilities.equation*100).toFixed(1)}%, интеграл=${(parsed.allProbabilities.integral*100).toFixed(1)}%, ДУ=${(parsed.allProbabilities.ode*100).toFixed(1)}%, система=${(parsed.allProbabilities.system*100).toFixed(1)}%\n`;
         }
         
-        response += `🎯 **Рекомендованный метод:** ${parsed.recommendedMethod} (уверенность: ${(parsed.methodConfidence * 100).toFixed(1)}%)\n`;
-        response += `💡 **Почему:** ${parsed.methodReason}\n\n`;
+        response += `Рекомендованный метод: ${parsed.recommendedMethod} (уверенность: ${(parsed.methodConfidence * 100).toFixed(1)}%)\n`;
+        response += `Почему: ${parsed.methodReason}\n\n`;
         
         if (result.converged) {
-            response += `📐 **Результат:** `;
+            response += `Результат: `;
             if (parsed.taskType === 'equation') response += `x ≈ ${result.root?.toFixed(6)}`;
             else if (parsed.taskType === 'integral') response += `${result.result?.toFixed(8)}`;
             else if (parsed.taskType === 'ode') response += `y(${result.final_x?.toFixed(4)}) = ${result.final_y?.toFixed(6)}`;
             else if (parsed.taskType === 'system') response += `[${result.solution?.map(x => x.toFixed(6)).join(', ')}]`;
             response += `\n`;
         } else {
-            response += `⚠️ **Не удалось получить решение:** ${result.message || 'попробуйте другую формулировку'}\n`;
+            response += `Не удалось получить решение: ${result.message || 'попробуйте другую формулировку'}\n`;
         }
         
         return response;
@@ -172,6 +263,28 @@ class NeuralSolver {
         };
         return names[type] || type;
     }
+
+
+    getMethodForType(taskType) {
+    const methods = {
+        equation: 'newton',
+        integral: 'simpson',
+        ode: 'runge-kutta',
+        system: 'gauss'
+    };
+    return methods[taskType] || 'newton';
+}
+
+getMethodReason(taskType) {
+    const reasons = {
+        equation: 'стандартный метод для уравнений',
+        integral: 'наиболее точный метод',
+        ode: 'высокая точность для ОДУ',
+        system: 'прямой метод для СЛАУ'
+    };
+    return reasons[taskType] || 'рекомендован по умолчанию';
+}
+
 }
 
 export default NeuralSolver;
