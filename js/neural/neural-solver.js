@@ -224,9 +224,33 @@ class NeuralSolver {
     }
     
     async saveResult(taskType, expression, method, converged, result) {
-        // Сохранение в БД (опционально)
-        console.log(`Сохранение результата: ${taskType}, ${method}, converged=${converged}`);
+    console.log(`Сохранение результата: ${taskType}, ${method}, converged=${converged}`);
+    
+    //отправка в БД
+    try {
+        let resultValue = null;
+        if (taskType === 'equation') resultValue = result?.root;
+        else if (taskType === 'integral') resultValue = result?.result;
+        else if (taskType === 'ode') resultValue = result?.final_y;
+        else if (taskType === 'system') resultValue = result?.solution;
+        
+        const response = await fetch('http://localhost:8000/api/save-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                task_type: taskType,
+                input_data: { expression: expression, method: method },
+                method_used: method,
+                result: { value: resultValue, converged: converged }
+            })
+        });
+        
+        const data = await response.json();
+        console.log('Результат сохранения в БД:', data);
+    } catch (error) {
+        console.error('Ошибка сохранения в БД:', error);
     }
+}
     
     generateResponse(parsed, result) {
         let response = `Нейросеть решила задачу!\n\n`;
